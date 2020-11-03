@@ -84,7 +84,8 @@ Spectrum UniformSampleOneLight(const Scene *scene,
         const Normal &n, const Vector &wo, float rayEpsilon, float time,
         BSDF *bsdf, const Sample *sample, RNG &rng, int lightNumOffset,
         const LightSampleOffsets *lightSampleOffset,
-        const BSDFSampleOffsets *bsdfSampleOffset) {
+        const BSDFSampleOffsets *bsdfSampleOffset, 
+        LightQueryRecord *qr)  {
     // Randomly choose a single light to sample, _light_
     int nLights = int(scene->lights.size());
     if (nLights == 0) return Spectrum(0.);
@@ -110,7 +111,7 @@ Spectrum UniformSampleOneLight(const Scene *scene,
     return (float)nLights *
         EstimateDirect(scene, renderer, arena, light, p, n, wo,
                        rayEpsilon, time, bsdf, rng, lightSample,
-                       bsdfSample, BxDFType(BSDF_ALL & ~BSDF_SPECULAR));
+                       bsdfSample, BxDFType(BSDF_ALL & ~BSDF_SPECULAR), qr);
 }
 
 
@@ -118,25 +119,45 @@ Spectrum EstimateDirect(const Scene *scene, const Renderer *renderer,
         MemoryArena &arena, const Light *light, const Point &p,
         const Normal &n, const Vector &wo, float rayEpsilon, float time,
         const BSDF *bsdf, RNG &rng, const LightSample &lightSample,
-        const BSDFSample &bsdfSample, BxDFType flags) {
+        const BSDFSample &bsdfSample, BxDFType flags, LightQueryRecord *qr) {
     Spectrum Ld(0.);
+    Spectrum Ld_diffuse(0.);
     // Sample light source with multiple importance sampling
     Vector wi;
     float lightPdf, bsdfPdf;
     VisibilityTester visibility;
     Spectrum Li = light->Sample_L(p, rayEpsilon, lightSample, time,
                                   &wi, &lightPdf, &visibility);
+
+    if (qr) {
+      if (visibility.Unoccluded(scene)) {
+        qr->isLightVisible = true;
+      }
+
+      qr->pdfs[0] = lightPdf;
+      qr->set_angles(wi);
+      // TODO: set angles for MIS
+    }
+
     if (lightPdf > 0. && !Li.IsBlack()) {
         Spectrum f = bsdf->f(wo, wi, flags);
+        Spectrum f_diffuse = bsdf->f(wo, wi, BxDFType(BSDF_DIFFUSE|BSDF_REFLECTION));
         if (!f.IsBlack() && visibility.Unoccluded(scene)) {
             // Add light's contribution to reflected radiance
-            Li *= visibility.Transmittance(scene, renderer, NULL, rng, arena);
-            if (light->IsDeltaLight())
+            Spectrum transmittance = visibility.Transmittance(scene, renderer, NULL, rng, arena);
+            Li *= transmittance;
+            if (light->IsDeltaLight()) {
                 Ld += f * Li * (AbsDot(wi, n) / lightPdf);
+                Ld_diffuse += f_diffuse * Li * (AbsDot(wi, n) / lightPdf);
+            }
             else {
                 bsdfPdf = bsdf->Pdf(wo, wi, flags);
+
+                if (qr) qr->pdfs[1] = bsdfPdf;
+
                 float weight = PowerHeuristic(1, lightPdf, 1, bsdfPdf);
                 Ld += f * Li * (AbsDot(wi, n) * weight / lightPdf);
+                Ld_diffuse += f_diffuse * Li * (AbsDot(wi, n) * weight / lightPdf);
             }
         }
     }
@@ -146,12 +167,23 @@ Spectrum EstimateDirect(const Scene *scene, const Renderer *renderer,
         BxDFType sampledType;
         Spectrum f = bsdf->Sample_f(wo, &wi, bsdfSample, &bsdfPdf, flags,
                                     &sampledType);
+
+        if (qr) qr->pdfs[3] = bsdfPdf;
+
+        Spectrum f_diffuse = bsdf->f(wo, wi, BxDFType(BSDF_DIFFUSE|BSDF_REFLECTION));
         if (!f.IsBlack() && bsdfPdf > 0.) {
             float weight = 1.f;
             if (!(sampledType & BSDF_SPECULAR)) {
                 lightPdf = light->Pdf(p, wi);
-                if (lightPdf == 0.)
-                    return Ld;
+
+                if (qr) qr->pdfs[2] = lightPdf;
+
+                if (lightPdf == 0.) {
+                  if (qr) {
+                    qr->diffuse_lighting = Ld_diffuse;
+                  }
+                  return Ld;
+                }
                 weight = PowerHeuristic(1, bsdfPdf, 1, lightPdf);
             }
             // Add light contribution from BSDF sampling
@@ -159,17 +191,28 @@ Spectrum EstimateDirect(const Scene *scene, const Renderer *renderer,
             Spectrum Li(0.f);
             RayDifferential ray(p, wi, rayEpsilon, INFINITY, time);
             if (scene->Intersect(ray, &lightIsect)) {
-                if (lightIsect.primitive->GetAreaLight() == light)
+                if (lightIsect.primitive->GetAreaLight() == light) {
                     Li = lightIsect.Le(-wi);
+                }
+            } else {
+              Li = light->Le(ray);
             }
-            else
-                Li = light->Le(ray);
             if (!Li.IsBlack()) {
-                Li *= renderer->Transmittance(scene, ray, NULL, rng, arena);
+                if (qr) {
+                  qr->isLightVisible = true;
+                }
+                Spectrum transmittance = renderer->Transmittance(scene, ray, NULL, rng, arena);
+                Li *=  transmittance;
                 Ld += f * Li * AbsDot(wi, n) * weight / bsdfPdf;
+                Ld_diffuse += f_diffuse * Li * AbsDot(wi, n) * weight / bsdfPdf;
             }
         }
     }
+
+    if (qr) {
+      qr->diffuse_lighting = Ld_diffuse;
+    }
+
     return Ld;
 }
 
@@ -233,21 +276,21 @@ Spectrum SpecularTransmit(const RayDifferential &ray, BSDF *bsdf,
         
             float eta = bsdf->eta;
             Vector w = -wo;
-            if (Dot(w, n) < 0) eta = 1.f / eta;
+            if (Dot(wo, n) < 0) eta = 1.f / eta;
         
             Normal dndx = bsdf->dgShading.dndu * bsdf->dgShading.dudx + bsdf->dgShading.dndv * bsdf->dgShading.dvdx;
             Normal dndy = bsdf->dgShading.dndu * bsdf->dgShading.dudy + bsdf->dgShading.dndv * bsdf->dgShading.dvdy;
-
-            Vector dwdx = ray.rxDirection - w, dwdy = ray.ryDirection - w;
-            float dDNdx = Dot(dwdx, n) + Dot(w, dndx);
-            float dDNdy = Dot(dwdy, n) + Dot(w, dndy);
-
+        
+            Vector dwodx = -ray.rxDirection - wo, dwody = -ray.ryDirection - wo;
+            float dDNdx = Dot(dwodx, n) + Dot(wo, dndx);
+            float dDNdy = Dot(dwody, n) + Dot(wo, dndy);
+        
             float mu = eta * Dot(w, n) - Dot(wi, n);
             float dmudx = (eta - (eta*eta*Dot(w,n))/Dot(wi, n)) * dDNdx;
             float dmudy = (eta - (eta*eta*Dot(w,n))/Dot(wi, n)) * dDNdy;
         
-            rd.rxDirection = wi + eta * dwdx - Vector(mu * dndx + dmudx * n);
-            rd.ryDirection = wi + eta * dwdy - Vector(mu * dndy + dmudy * n);
+            rd.rxDirection = wi + eta * dwodx - Vector(mu * dndx + dmudx * n);
+            rd.ryDirection = wi + eta * dwody - Vector(mu * dndy + dmudy * n);
         }
         PBRT_STARTED_SPECULAR_REFRACTION_RAY(const_cast<RayDifferential *>(&rd));
         Spectrum Li = renderer->Li(scene, rd, sample, rng, arena);

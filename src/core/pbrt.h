@@ -98,7 +98,12 @@ typedef unsigned __int64 uint64_t;
 #pragma warning (disable : 4305) // double constant assigned to float
 #pragma warning (disable : 4244) // int -> float conversion
 #pragma warning (disable : 4267) // size_t -> unsigned int conversion
-#endif
+#elif defined(PBRT_IS_APPLE)
+#else
+#include <cmath>
+#define isinf(f) (std::isinf((f)))
+#define isnan(f) (std::isnan((f)))
+#endif // PBRT_IS_WINDOWS
 
 #if defined(PBRT_IS_LINUX) || defined(PBRT_IS_APPLE)
 #include <stdint.h>
@@ -158,6 +163,7 @@ typedef RGBSpectrum Spectrum;
 class Camera;
 class ProjectiveCamera;
 class Sampler;
+class SampleRecord;
 struct CameraSample;
 struct Sample;
 class Filter;

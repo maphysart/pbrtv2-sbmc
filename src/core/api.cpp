@@ -64,6 +64,8 @@
 #include "integrators/igi.h"
 #include "integrators/irradiancecache.h"
 #include "integrators/path.h"
+#include "integrators/pathkpcn.h"
+#include "integrators/pathrendernet.h"
 #include "integrators/photonmap.h"
 #include "integrators/single.h"
 #include "integrators/useprobes.h"
@@ -91,6 +93,7 @@
 #include "renderers/aggregatetest.h"
 #include "renderers/createprobes.h"
 #include "renderers/metropolis.h"
+#include "renderers/rendernetrenderer.h"
 #include "renderers/samplerrenderer.h"
 #include "renderers/surfacepoints.h"
 #include "samplers/adaptive.h"
@@ -539,6 +542,10 @@ SurfaceIntegrator *MakeSurfaceIntegrator(const string &name,
         si = CreateDirectLightingIntegrator(paramSet);
     else if (name == "path")
         si = CreatePathSurfaceIntegrator(paramSet);
+    else if (name == "pathkpcn")
+        si = CreatePathKPCNSurfaceIntegrator(paramSet);
+    else if (name == "pathrendernet")
+        si = CreatePathRendernetSurfaceIntegrator(paramSet);
     else if (name == "photonmap" || name == "exphotonmap")
         si = CreatePhotonMapSurfaceIntegrator(paramSet);
     else if (name == "irradiancecache")
@@ -1242,6 +1249,38 @@ Renderer *RenderOptions::MakeRenderer() const {
         Point pCamera = camera->CameraToWorld(camera->shutterOpen, Point(0, 0, 0));
         renderer = CreateSurfacePointsRenderer(RendererParams, pCamera, camera->shutterOpen);
         RendererParams.ReportUnused();
+    }
+    else if (RendererName == "rendernet") {
+        int tileSize = RendererParams.FindOneInt("tilesize", 64);
+
+        int useCameraSpaceNormals = RendererParams.FindOneBool("useCameraSpaceNormals", true);
+        int recordedSamples = RendererParams.FindOneInt("recordedsamples", 1);
+        RendererParams.ReportUnused();
+        Sampler *sampler = MakeSampler(SamplerName, SamplerParams, camera->film, camera);
+        Sampler *sampler2 = MakeSampler(SamplerName, SamplerParams, camera->film, camera);
+
+        ParamSet RecordedSamplerParams = SamplerParams;
+        RecordedSamplerParams.AddInt("pixelsamples", &recordedSamples, 1);
+        Sampler *sampler_recorded = MakeSampler(SamplerName, RecordedSamplerParams, camera->film, camera);
+
+        if (!sampler) Severe("Unable to create sampler.");
+        if (!sampler2) Severe("Unable to create sampler.");
+        if (!sampler_recorded) Severe("Unable to create sampler.");
+
+        // Create surface and volume integrators
+        SurfaceIntegrator *surfaceIntegrator = MakeSurfaceIntegrator(SurfIntegratorName,
+            SurfIntegratorParams);
+        if (!surfaceIntegrator) Severe("Unable to create surface integrator.");
+        VolumeIntegrator *volumeIntegrator = MakeVolumeIntegrator(VolIntegratorName,
+            VolIntegratorParams);
+        if (!volumeIntegrator) Severe("Unable to create volume integrator.");
+        renderer = new RendernetRenderer(sampler, sampler2, sampler_recorded, camera, surfaceIntegrator,
+                                       volumeIntegrator, tileSize, recordedSamples,
+                                       useCameraSpaceNormals);
+        // Warn if no light sources are defined
+        if (lights.size() == 0)
+            Warning("No light sources defined in scene; "
+                "possibly rendering a black image.");
     }
     else {
         if (RendererName != "sampler")

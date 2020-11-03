@@ -28,7 +28,7 @@
     OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
  */
-
+ 
 
 // core/reflection.cpp*
 #include "stdafx.h"
@@ -653,4 +653,12 @@ Spectrum BSDF::rho(const Vector &wo, RNG &rng, BxDFType flags,
     return ret;
 }
 
+
+
+Spectrum BSDF::K() const {
+    Spectrum k(0.f);
+    for(int i = 0; i < nBxDFs; i++)
+        k += bxdfs[i]->K();
+    return k;
+}
 

@@ -43,6 +43,7 @@
 #include "light.h"
 #include "reflection.h"
 #include "sampler.h"
+#include "samplerecord.h"
 #include "material.h"
 #include "probes.h"
 #include "renderer.h"
@@ -67,6 +68,11 @@ public:
     virtual Spectrum Li(const Scene *scene, const Renderer *renderer,
         const RayDifferential &ray, const Intersection &isect,
         const Sample *sample, RNG &rng, MemoryArena &arena) const = 0;
+    virtual RadianceQueryRecord RecordedLi(const Scene *scene, const Renderer *renderer,
+        const RayDifferential &ray, const Intersection &isect,
+        const Sample *sample, RNG &rng, MemoryArena &arena, SampleRecord *sw, 
+        Camera *camera) const {return RadianceQueryRecord(); };
+    virtual int maxDepth() { return 0; };
 };
 
 
@@ -80,12 +86,13 @@ Spectrum UniformSampleOneLight(const Scene *scene, const Renderer *renderer,
     float rayEpsilon, float time, BSDF *bsdf,
     const Sample *sample, RNG &rng, int lightNumOffset = -1,
     const LightSampleOffsets *lightSampleOffset = NULL,
-    const BSDFSampleOffsets *bsdfSampleOffset = NULL);
+    const BSDFSampleOffsets *bsdfSampleOffset = NULL, 
+    LightQueryRecord *qr = NULL);
 Spectrum EstimateDirect(const Scene *scene, const Renderer *renderer,
     MemoryArena &arena, const Light *light, const Point &p,
     const Normal &n, const Vector &wo, float rayEpsilon, float time, const BSDF *bsdf,
     RNG &rng, const LightSample &lightSample, const BSDFSample &bsdfSample,
-    BxDFType flags);
+    BxDFType flags, LightQueryRecord *qr = NULL);
 Spectrum SpecularReflect(const RayDifferential &ray, BSDF *bsdf, RNG &rng,
     const Intersection &isect, const Renderer *renderer, const Scene *scene,
     const Sample *sample, MemoryArena &arena);

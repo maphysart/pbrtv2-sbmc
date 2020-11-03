@@ -177,6 +177,9 @@ public:
     Spectrum rho(const Vector &wo, RNG &rng, BxDFType flags = BSDF_ALL,
                  int sqrtSamples = 6) const;
 
+    Spectrum K() const;
+    Normal N() const {return nn;}
+    
     // BSDF Public Data
     const DifferentialGeometry dgShading;
     const float eta;
@@ -214,6 +217,8 @@ public:
                          const float *samples2) const;
     virtual float Pdf(const Vector &wi, const Vector &wo) const;
 
+    virtual Spectrum K() const = 0;
+
     // BxDF Public Data
     const BxDFType type;
 };
@@ -239,6 +244,11 @@ public:
         return brdf->rho(nSamples, samples1, samples2);
     }
     float Pdf(const Vector &wo, const Vector &wi) const;
+
+    Spectrum K() const {
+        return brdf->K();
+    }
+
 private:
     BxDF *brdf;
 };
@@ -260,6 +270,10 @@ public:
     Spectrum f(const Vector &wo, const Vector &wi) const;
     Spectrum Sample_f(const Vector &wo, Vector *wi,
         float u1, float u2, float *pdf) const;
+
+    Spectrum K() const {
+        return s*bxdf->K();
+    }
 private:
     BxDF *bxdf;
     Spectrum s;
@@ -318,6 +332,10 @@ public:
     float Pdf(const Vector &wo, const Vector &wi) const {
         return 0.;
     }
+
+    Spectrum K() const {
+        return Spectrum();
+    }
 private:
     // SpecularReflection Private Data
     Spectrum R;
@@ -342,6 +360,10 @@ public:
     float Pdf(const Vector &wo, const Vector &wi) const {
         return 0.;
     }
+
+    Spectrum K() const {
+        return Spectrum();
+    }
 private:
     // SpecularTransmission Private Data
     Spectrum T;
@@ -358,6 +380,10 @@ public:
     Spectrum f(const Vector &wo, const Vector &wi) const;
     Spectrum rho(const Vector &, int, const float *) const { return R; }
     Spectrum rho(int, const float *, const float *) const { return R; }
+
+    Spectrum K() const {
+        return R;
+    }
 private:
     // Lambertian Private Data
     Spectrum R;
@@ -375,6 +401,10 @@ public:
         float sigma2 = sigma*sigma;
         A = 1.f - (sigma2 / (2.f * (sigma2 + 0.33f)));
         B = 0.45f * sigma2 / (sigma2 + 0.09f);
+    }
+
+    Spectrum K() const {
+        return R;
     }
 private:
     // OrenNayar Private Data
@@ -411,6 +441,10 @@ public:
     Spectrum Sample_f(const Vector &wo, Vector *wi,
                               float u1, float u2, float *pdf) const;
     float Pdf(const Vector &wo, const Vector &wi) const;
+
+    Spectrum K() const {
+        return R;
+    }
 private:
     // Microfacet Private Data
     Spectrum R;
@@ -470,6 +504,11 @@ public:
     }
     Spectrum Sample_f(const Vector &wi, Vector *sampled_f, float u1, float u2, float *pdf) const;
     float Pdf(const Vector &wi, const Vector &wo) const;
+
+    Spectrum K() const {
+        return Rd;
+    }
+
 private:
     // FresnelBlend Private Data
     Spectrum Rd, Rs;
@@ -483,6 +522,11 @@ public:
     IrregIsotropicBRDF(const KdTree<IrregIsotropicBRDFSample> *d)
         : BxDF(BxDFType(BSDF_REFLECTION | BSDF_GLOSSY)), isoBRDFData(d) { }
     Spectrum f(const Vector &wo, const Vector &wi) const;
+
+    Spectrum K() const {
+        return Spectrum();
+    }
+
 private:
     // IrregIsotropicBRDF Private Data
     const KdTree<IrregIsotropicBRDFSample> *isoBRDFData;
@@ -497,6 +541,11 @@ public:
         : BxDF(BxDFType(BSDF_REFLECTION | BSDF_GLOSSY)), brdf(d),
           nThetaH(nth), nThetaD(ntd), nPhiD(npd) { }
     Spectrum f(const Vector &wo, const Vector &wi) const;
+
+    Spectrum K() const {
+        return Spectrum();
+    }
+
 private:
     // RegularHalfangleBRDF Private Data
     const float *brdf;

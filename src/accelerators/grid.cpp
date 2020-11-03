@@ -120,11 +120,10 @@ GridAccel::~GridAccel() {
 }
 
 
-bool GridAccel::Intersect(const Ray &rorig, Intersection *isect) const {
-    PBRT_GRID_INTERSECTION_TEST(const_cast<GridAccel *>(this), const_cast<Ray *>(&rorig));
+bool GridAccel::Intersect(const Ray &ray, Intersection *isect) const {
+    PBRT_GRID_INTERSECTION_TEST(const_cast<GridAccel *>(this), const_cast<Ray *>(&ray));
     // Check ray against overall grid bounds
     float rayT;
-    Ray ray = rorig;
     if (bounds.Inside(ray(ray.mint)))
         rayT = ray.mint;
     else if (!bounds.IntersectP(ray, &rayT))
@@ -138,7 +137,6 @@ bool GridAccel::Intersect(const Ray &rorig, Intersection *isect) const {
     float NextCrossingT[3], DeltaT[3];
     int Step[3], Out[3], Pos[3];
     for (int axis = 0; axis < 3; ++axis) {
-        if (ray.d[axis] == -0.f) ray.d[axis] = 0.f;
         // Compute current voxel for axis
         Pos[axis] = posToVoxel(gridIntersect, axis);
         if (ray.d[axis] >= 0) {
@@ -225,12 +223,11 @@ bool Voxel::Intersect(const Ray &ray, Intersection *isect,
 }
 
 
-bool GridAccel::IntersectP(const Ray &rorig) const {
-    PBRT_GRID_INTERSECTIONP_TEST(const_cast<GridAccel *>(this), const_cast<Ray *>(&rorig));
+bool GridAccel::IntersectP(const Ray &ray) const {
+    PBRT_GRID_INTERSECTIONP_TEST(const_cast<GridAccel *>(this), const_cast<Ray *>(&ray));
     RWMutexLock lock(*rwMutex, READ);
     // Check ray against overall grid bounds
     float rayT;
-    Ray ray = rorig;
     if (bounds.Inside(ray(ray.mint)))
         rayT = ray.mint;
     else if (!bounds.IntersectP(ray, &rayT))
@@ -244,7 +241,6 @@ bool GridAccel::IntersectP(const Ray &rorig) const {
     float NextCrossingT[3], DeltaT[3];
     int Step[3], Out[3], Pos[3];
     for (int axis = 0; axis < 3; ++axis) {
-        if (ray.d[axis] == -0.f) ray.d[axis] = 0.f;
         // Compute current voxel for axis
         Pos[axis] = posToVoxel(gridIntersect, axis);
         if (ray.d[axis] >= 0) {

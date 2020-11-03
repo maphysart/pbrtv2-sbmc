@@ -20,7 +20,9 @@
 
 #include <string>
 #include <vector>
+#include <algorithm>
 #include <map>
+#include <cmath>
 
 namespace tinyobj {
 
@@ -903,6 +905,11 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
+  bool normalize_uvs = true;
+  // if (normalize_uvs) {
+  //   fprintf(stderr, "normalizing uvs\n");
+  // }
+
   std::vector<shape_t> shapes;
   const char *mtl_basepath = ""; // ?
   std::string errs = LoadObj(shapes, argv[1], mtl_basepath);
@@ -928,10 +935,10 @@ int main(int argc, char *argv[]) {
       bounds[1][c] = std::max(bounds[1][c], mesh.positions[i]);
     }
   }
-  fprintf(f, "# Converted from \"%s\" by obj2pbrt\n", argv[1]);
-  fprintf(f, "# Scene bounds: (%f, %f, %f) - (%f, %f, %f)\n\n\n",
-         bounds[0][0], bounds[0][1], bounds[0][2],
-         bounds[1][0], bounds[1][1], bounds[1][2]);
+  // fprintf(f, "# Converted from \"%s\" by obj2pbrt\n", argv[1]);
+  // fprintf(f, "# Scene bounds: (%f, %f, %f) - (%f, %f, %f)\n\n\n",
+  //        bounds[0][0], bounds[0][1], bounds[0][2],
+  //        bounds[1][0], bounds[1][1], bounds[1][2]);
 
   int numAreaLights = 0;
   int numTriangles = 0;
@@ -949,6 +956,7 @@ int main(int argc, char *argv[]) {
 
     fprintf(f, "# Name \"%s\"\n", shape.name.c_str());
     fprintf(f, "AttributeBegin\n");
+    fprintf(f, "# MaterialName \"%s\"\n", mtl.name.c_str());
     if (mtl.emission[0] > 0 || mtl.emission[1] > 0 || mtl.emission[2] > 0) {
       fprintf(f, "AreaLightSource \"area\" \"rgb L\" [ %f %f %f ]\n",
              mtl.emission[0], mtl.emission[1], mtl.emission[2]);
@@ -1028,13 +1036,22 @@ int main(int argc, char *argv[]) {
       fprintf(f, "]\n");
     }
     if (mesh.texcoords.size()) {
-      fprintf(f, "    \"float st\" [\n    ");
-      for (size_t i = 0; i < mesh.texcoords.size(); ++i) {
-        fprintf(f, "%.10g ", mesh.texcoords[i]);
-        if (((i + 1) % 2) == 0)
-          fprintf(f, "\n    ");
+      auto tx_bounds = std::minmax_element(mesh.texcoords.begin(), mesh.texcoords.end());
+      // fprintf(stderr, "normalizing mesh uv by %.10g %.10g (count %ld)\n", *tx_bounds.first, *tx_bounds.second, mesh.texcoords.size());
+      float bound =  fmax(std::fabs(*tx_bounds.first), std::abs((float)*tx_bounds.second));
+      if(bound < 1e-5) {
+        // fprintf(stderr, "mesh has all-nil uvs, skipping\n");
+      } else {
+        fprintf(f, "    \"float uv\" [\n    ");
+        // fprintf(f, "    \"float st\" [\n    ");
+        for (size_t i = 0; i < mesh.texcoords.size(); ++i) {
+          float val = mesh.texcoords[i] / bound;
+          fprintf(f, "%.10g ", val);
+          if (((i + 1) % 2) == 0)
+            fprintf(f, "\n    ");
+        }
+        fprintf(f, "]\n");
       }
-      fprintf(f, "]\n");
     }
     numTriangles += mesh.indices.size() / 3;
     fprintf(f, "  \"integer indices\" [\n    ");
@@ -1049,8 +1066,8 @@ int main(int argc, char *argv[]) {
   if (f != stdout)
     fclose(f);
 
-  fprintf(stderr, "Converted %d meshes (%d triangles, %d mesh emitters).\n",
-          numMeshes, numTriangles, numAreaLights);
+  // fprintf(stderr, "Converted %d meshes (%d triangles, %d mesh emitters).\n",
+  //         numMeshes, numTriangles, numAreaLights);
 
   return 0;
 }

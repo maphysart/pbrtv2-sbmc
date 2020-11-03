@@ -65,11 +65,11 @@ public:
     ProjectiveCamera(const AnimatedTransform &cam2world,
         const Transform &proj, const float screenWindow[4],
         float sopen, float sclose, float lensr, float focald, Film *film);
+    float lensRadius, focalDistance;
 protected:
     // ProjectiveCamera Protected Data
     Transform CameraToScreen, RasterToCamera;
     Transform ScreenToRaster, RasterToScreen;
-    float lensRadius, focalDistance;
 };
 
 

@@ -45,8 +45,8 @@
 class SamplerRenderer : public Renderer {
 public:
     // SamplerRenderer Public Methods
-    SamplerRenderer(Sampler *s, Camera *c, SurfaceIntegrator *si,
-                    VolumeIntegrator *vi, bool visIds);
+    SamplerRenderer(Sampler *s, Camera *c, SurfaceIntegrator *si, 
+        VolumeIntegrator *vi, bool visIds);
     ~SamplerRenderer();
     void Render(const Scene *scene);
     Spectrum Li(const Scene *scene, const RayDifferential &ray,

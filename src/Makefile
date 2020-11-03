@@ -5,12 +5,12 @@
 # common locations for the OpenEXR libraries; may need to be updated
 # for unusual installation locations
 HAVE_EXR=1
-EXR_INCLUDES=-I/usr/local/include/OpenEXR -I/usr/include/OpenEXR -I/opt/local/include/OpenEXR 
-EXR_LIBDIR=-L/usr/local/lib -L/opt/local/lib
+EXR_INCLUDES=-I/usr/local/include/OpenEXR -I/usr/include/OpenEXR #-I/opt/local/include/OpenEXR 
+EXR_LIBDIR=-L/usr/local/lib #-L/opt/local/lib
 
 HAVE_LIBTIFF=0
-TIFF_INCLUDES=-I/usr/local/include -I/opt/local/include
-TIFF_LIBDIR=-L/usr/local/lib -L/opt/local/lib
+TIFF_INCLUDES=-I/usr/local/include #-I/opt/local/include
+TIFF_LIBDIR=-L/usr/local/lib #-L/opt/local/lib
 
 HAVE_DTRACE=0
 
@@ -24,6 +24,7 @@ DEFS=-DPBRT_HAS_OPENEXR
 MARCH=-m64
 
 # change this to -g3 for debug builds
+# OPT=-g3
 OPT=-O2
 # comment out this line to enable assertions at runtime
 DEFS += -DNDEBUG
@@ -62,12 +63,13 @@ endif
 CC=gcc
 CXX=g++
 LD=$(CXX) $(OPT) $(MARCH)
-INCLUDE=-I. -Icore $(EXR_INCLUDES) $(TIFF_INCLUDES)
+INCLUDE=-I. -Icore $(EXR_INCLUDES) $(TIFF_INCLUDES) -I/usr/include
 WARN=-Wall
 CWD=$(shell pwd)
 CXXFLAGS=$(OPT) $(MARCH) $(INCLUDE) $(WARN) $(DEFS)
 CCFLAGS=$(CXXFLAGS)
-LIBS=$(LEXLIB) $(EXR_LIBDIR) $(EXRLIBS) -lm 
+CXXFLAGS+= -std=gnu++11
+LIBS=$(LEXLIB) $(EXR_LIBDIR) $(EXRLIBS) -lm -llz4
 
 LIB_CSRCS=core/targa.c
 LIB_CXXSRCS  = $(wildcard core/*.cpp) core/pbrtlex.cpp core/pbrtparse.cpp
@@ -170,6 +172,7 @@ objs/pbrt.o: main/pbrt.cpp
 objs/tools_%.o: tools/%.cpp
 	@echo "Building object $@"
 	@$(CXX) $(CXXFLAGS) -o $@ -c $<
+	# @$(CXX) $(CXXFLAGS)  -std=gnu++11 -o $@ -c $<
 
 bin/pbrt: objs/main_pbrt.o objs/libpbrt.a
 	@echo "Linking $@"

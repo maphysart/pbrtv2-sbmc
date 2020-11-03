@@ -42,7 +42,7 @@ PerspectiveCamera:: PerspectiveCamera(const AnimatedTransform &cam2world,
         const float screenWindow[4], float sopen, float sclose,
         float lensr, float focald, float fov, Film *f)
     : ProjectiveCamera(cam2world, Perspective(fov, 1e-2f, 1000.f),
-                       screenWindow, sopen, sclose, lensr, focald, f) {
+                       screenWindow, sopen, sclose, lensr, focald, f), fov(fov) {
     // Compute differential changes in origin for perspective camera rays
     dxCamera = RasterToCamera(Point(1,0,0)) - RasterToCamera(Point(0,0,0));
     dyCamera = RasterToCamera(Point(0,1,0)) - RasterToCamera(Point(0,0,0));
