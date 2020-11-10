@@ -31,3 +31,4 @@ src/pbrt.vs*/.vs
 tmp/
 bin/
 lib/
+*.udb
